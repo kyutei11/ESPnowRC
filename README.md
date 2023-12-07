@@ -1,4 +1,7 @@
 # ESPnowRC
+
+ESP32によるラジコン送受信機＋FETスピコン
+
 このコードで使っているESP32ボードは秋月のこちらです。
 https://akizukidenshi.com/catalog/g/gK-16108/
 
