@@ -2,6 +2,9 @@
 
 ESP32によるラジコン送受信機＋FETスピコン
 
+ArduinoIDEでESP32向けコードをコンパイルするための追加ボードマネージャURL（設定画面でURLを入力）:
+https://dl.espressif.com/dl/package_esp32_index.json
+
 このコードで使っているESP32ボードは秋月のこちらです。
 https://akizukidenshi.com/catalog/g/gK-16108/
 
