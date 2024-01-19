@@ -19,11 +19,38 @@
 //                                 5V --|           |-- 15(PWM, ADC2_3, TOUCH3, HSPI_CS)
 //                                      -------------
 //
-// * if not PWM, Input Only and no Pinup mode
+// * if not PWM, Input Only and no Pullup mode
 // * if using WiFi, ADC2 cannot be used
 
-
 /*
+
+No.1
+[Wi-Fi STA] 1C:9D:C2:53:02:C8
+[Bluetooth] 1C:9D:C2:53:02:CA
+
+No.2 
+[Wi-Fi STA] 24:D7:EB:48:C8:08
+[Bluetooth] 24:D7:EB:48:C8:0A
+
+No.3
+[Wi-Fi STA] 1C:9D:C2:52:B3:B8
+[Bluetooth] 1C:9D:C2:52:B3:BA
+
+No.5 
+[Wi-Fi STA] 24:D7:EB:48:CD:CC
+[Bluetooth] 24:D7:EB:48:CD:CE
+
+No.6
+[Wi-Fi STA] 1C:9D:C2:52:E3:2C
+[Bluetooth] 1C:9D:C2:52:E3:2E
+
+No.7
+[Wi-Fi STA] 44:17:93:6C:4F:E4
+[Bluetooth] 44:17:93:6C:4F:E6
+
+No.8
+[Wi-Fi STA] 44:17:93:6C:A6:08
+
 =================
 
       GR LED : Vf=2V   
@@ -64,8 +91,8 @@ T* <---=====
 const int ACH[NoCH]={35,32,33};
 const int SCH[NoSW]={14, 18,5, 16,17, 12}; // Trim-Enter, TRIM[+-]for 2ch , JoyStick_SW*1
 
-//                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv copy your RX ESP32 address
-const uint8_t addr[6] = {0x**, 0x**, 0x**, 0x**, 0x**, 0x**}; // RX Wifi STA address
+const uint8_t addr[6] = {0x44, 0x17, 0x93, 0x6C, 0xA6, 0x08}; // RX Wifi STA address : board No.8
+//const uint8_t addr[6] = {0x1C, 0x9D, 0xC2, 0x53, 0x02, 0xC8}; // RX Wifi STA address : board No.1
 /****************************************
 // use this code to know wifi Mac address
 #include "WiFi.h"
@@ -81,7 +108,7 @@ void setup()
 void loop(){}
 *****************************************/
 
-uint16_t iSW, iCH, iTS, CH, chkSUM, CAP_V;
+uint16_t iSW, iCH, iTS, CH,CH_prev[NoCH], chkSUM, CAP_V;
 
 //     16bit for each CH
 // next 8bit for each SW and Touch sensor (max. SW+Touch is 8)
@@ -152,14 +179,22 @@ void setup(){
 	TouchSens[iTS] = TouchSens0[iTS];// init.
   }
 
+  // modi. V.0.24.01.18 : added LPF to A/D
+  for(iCH=0; iCH<NoCH; iCH++)
+	CH_prev[iCH] = analogReadMilliVolts(ACH[iCH]); // 0..about3300 mV (usable : 300..3000mV)
 }
 
 void loop() { // default : core1
-
+  int i;
   chkSUM = 0;
-  for(iCH=0; iCH<NoCH; iCH++){
-	CH = analogReadMilliVolts(ACH[iCH]); // 0..about3300 mV (usable : 300..3000mV)
 
+  for(iCH=0; iCH<NoCH; iCH++){
+	// modi. V.0.24.01.18 : added LPF to A/D
+	for(i=0; i<10; i++){
+	  CH = CH_prev[iCH]/2 + analogReadMilliVolts(ACH[iCH])/2; // 0..about3300 mV (usable : 300..3000mV)
+	  delayMicroseconds(2000-60*NoCH); // *10 ~= 20+mSec : 60uS for each AD
+	  CH_prev[iCH] = CH;
+	}
 	// Serial.print("CH"); Serial.print(iCH); Serial.println(CH);
 	
 	// MSB
@@ -205,14 +240,14 @@ void loop() { // default : core1
   
   else  digitalWrite(LEDout, HIGH);
 
-  Serial.print("BATchk ="); Serial.println((int)Vbatt); Serial.print("mV\n");
+  //Serial.print("BATchk ="); Serial.println((int)Vbatt); Serial.print("mV\n");
   
   // blink, T~=1Hz
   if(LowVolCount <= 0        ) LowVolCount--;
   if(LowVolCount < -LEDblinkT) LowVolCount = 0;	  
 
   //-----------
-  delay(20);
+  // delay(20);
   // delay(100); // for test
 }
 
