@@ -66,13 +66,15 @@ Bit
 /*
                             LI CAP. 250F (or Li-ion BATT.)
       10k     10k               +  - 
-GND --vvv--+--vvv--+-------------||--------------GND
-           |       |    FET
-CapV <-----+       +----| |----+---[Motor]---+---GND
-                      D  =  S  |             |
-                         |G    +------||-----+ 
-TH   >-------------------+          0.1-1uF : if necessary
-                            (coreless motor : no freewheel current : no diode)
+GND --vvv--+--vvv--+-------------||-------------GND
+           |       |
+           |       |   +------||------+ 0.1-1uF : if necessary
+           |       |   |              |
+CapV <-----+       +---+-----[MT]-----+---| |---GND
+                                         D = S
+                                           |G
+TH   >-------------------------------------+
+ (coreless motor : no freewheel current : no diode)
 
 ESP32/Servo +5V : use DC-DC converter
 
