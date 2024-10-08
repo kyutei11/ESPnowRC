@@ -23,6 +23,31 @@
 // * if using WiFi, ADC2 cannot be used
 
 /*
+
+No.1
+[Wi-Fi STA] 1C:9D:C2:53:02:C8
+[Bluetooth] 1C:9D:C2:53:02:CA
+
+No.2 
+[Wi-Fi STA] 24:D7:EB:48:C8:08
+[Bluetooth] 24:D7:EB:48:C8:0A
+
+No.3
+[Wi-Fi STA] 1C:9D:C2:52:B3:B8
+[Bluetooth] 1C:9D:C2:52:B3:BA
+
+No.5 
+[Wi-Fi STA] 24:D7:EB:48:CD:CC
+[Bluetooth] 24:D7:EB:48:CD:CE
+
+No.6
+[Wi-Fi STA] 1C:9D:C2:52:E3:2C
+[Bluetooth] 1C:9D:C2:52:E3:2E
+
+No.7
+[Wi-Fi STA] 44:17:93:6C:4F:E4
+[Bluetooth] 44:17:93:6C:4F:E6
+
 ----------------------------
 PWM
 
@@ -66,15 +91,13 @@ Bit
 /*
                             LI CAP. 250F (or Li-ion BATT.)
       10k     10k               +  - 
-GND --vvv--+--vvv--+-------------||-------------GND
-           |       |
-           |       |   +------||------+ 0.1-1uF : if necessary
-           |       |   |              |
-CapV <-----+       +---+-----[MT]-----+---| |---GND
-                                         D = S
-                                           |G
-TH   >-------------------------------------+
- (coreless motor : no freewheel current : no diode)
+GND --vvv--+--vvv--+-------------||--------------GND
+           |       |    FET
+CapV <-----+       +----| |----+---[Motor]---+---GND
+                      D  =  S  |             |
+                         |G    +------||-----+ 
+TH   >-------------------+          0.1-1uF : if necessary
+                            (coreless motor : no freewheel current : no diode)
 
 ESP32/Servo +5V : use DC-DC converter
 
@@ -83,7 +106,8 @@ note : DC Motor Max.Voltage will be 2.5V
 */
 
 //                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv copy your TX ESP32 address
-const uint8_t addr[6] = {0x**, 0x**, 0x**, 0x**, 0x**, 0x**}; // TX Wifi Mac address
+const uint8_t addr[6] = {0x44, 0x17, 0x93, 0x6C, 0x4F, 0xE4}; // TX Wifi Mac address : board No.7
+
 /****************************************
 // use this code to know wifi Mac address
 #include "WiFi.h"
@@ -131,7 +155,7 @@ const int AD_ClipVolt = 300; // input : 0..3.3V --> output : 0.3..3.0V
 int   mV_Cap;
 float V_Motor, V_Cap;
 const float CAP_LPF = 0.02;
-int   Motor_OK = 0;
+int   Mot_Stat = 0;
 
 void setup() {
 
@@ -165,9 +189,9 @@ void setup() {
   
   for(iCH=1; iCH<NoCH; iCH++){
 	CH_RX[iCH] = 0;      // zero value also used in initial loop
-  	//           vv diff. timer than TH...
-  	ledcSetup(iCH, 50.86, 16);   //  (channel, Hz, maxbit)
-  	ledcAttachPin(CH[iCH], iCH); // GPIO pin , PWM channel
+  	//         vv diff. timer than TH... and user different timer or group for each CH
+  	ledcSetup((iCH-1)*2, 50.86, 16);   //  (channel, Hz, maxbit)
+  	ledcAttachPin(CH[iCH], (iCH-1)*2); // GPIO pin , PWM channel
   }
   
   V_Cap = 2.5; // init.
@@ -329,23 +353,22 @@ void RecvData(const uint8_t *mac_addr, const uint8_t *RXdata, int dataSize)
 	// V_Cap -> numerical LPF
 	mV_Cap  = 2 * analogReadMilliVolts(CapV); // 10k-10k Ohm : 0.5*Vcap
 	V_Cap   = V_Cap*(1.0-CAP_LPF) + CAP_LPF*(0.001*(float)mV_Cap); // LPF
-	V_Motor = 2.5*((float)(CH_RX[0]-300)/2700.0);
+	V_Motor = 2.5*((float)(CH_RX[0]-300)/2700.0); // 300--3000 -> 0--2700
 
-	// Motor_OK = 0:init cond. before TH up
+	// Mot_Stat = 0:init cond. before TH up
 	//            1:flight
-	//            2:low V cutoff
-	if(Motor_OK == 1){
+	//            2:reduce power
+	//            3:low V cutoff
+	if(Mot_Stat >= 1){
 	  // V_Cap < 3.0V : reduce power x0.5
 	  // V_Cap < 2.5V : cutoff
 
-	  if(V_Cap < 2.5){
-		PWM_out  = 0;
-		Motor_OK = 2;
-	  }
-	  else{
-		PWM_out = (int)(1024.0*V_Motor/V_Cap);
-		if(V_Cap < 3.0) PWM_out = PWM_out/2;
-	  }
+	  if(V_Cap < 3.0) Mot_Stat = 2; // once...
+	  if(V_Cap < 2.5) Mot_Stat = 3;
+
+	  PWM_out = (int)(1024.0*V_Motor/V_Cap);
+	  if(Mot_Stat == 2) PWM_out = PWM_out/2;
+	  if(Mot_Stat == 3) PWM_out = 0;
 
 	  ledcWrite(TH_CH, PWM_out);
 	
@@ -356,10 +379,10 @@ void RecvData(const uint8_t *mac_addr, const uint8_t *RXdata, int dataSize)
 	  /* Serial.print("V_Motor="); Serial.println(V_Motor); */
 	  /* Serial.print("PWM_out="); Serial.println(PWM_out); */
 	}
-	else if(Motor_OK == 0){
+	else{ // Mot_Stat == 0
 	  ledcWrite(TH_CH, 0);
 	  // CHK TH is OFF at init.state
-	  if(CH_RX[0] <= AD_ClipVolt) Motor_OK = 1;
+	  if(CH_RX[0] <= AD_ClipVolt) Mot_Stat = 1;
 	}
 	
 	// ----------------------
